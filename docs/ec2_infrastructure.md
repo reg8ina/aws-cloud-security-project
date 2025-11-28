@@ -1,105 +1,101 @@
-# AWS EC2 Infrastructure Overview  
-Cloud Security Project Architecture
 
-## Overview
-This document describes the EC2-based infrastructure used in the AWS Cloud Security Project.  
+Overview
+
+This document describes the EC2-based infrastructure used in the AWS Cloud Security Project.
 The environment includes a Bastion host, a Splunk Enterprise server, and a Web Server running Nginx with Universal 
-Forwarder.  
+Forwarder.
 All components are deployed inside a custom VPC and communicate using private IP addresses.
 
----
+EC2 Instances Summary
+Instance Name	Public IP	Private IP	Instance Type	Security Group	Role / Purpose
+regi-bastion-ec2	18.195.148.236	10.0.13.23	t3.micro	regi-bastion-sg	Secure SSH entry point to VPC
+regi-splunk-server	3.120.190.194	10.0.0.149	t3.small	regi-splunk-sg	Splunk Enterprise (ports 8000, 9997)
+regi-web-ec2-new	3.75.189.97	10.0.15.63	t3.micro	regi-web-sg	Web server (Nginx + Universal 
+Forwarder)
 
-## EC2 Instances Summary
+Legacy instance (regi-web-ec2) removed from architecture.
 
-| Instance Name        | Public IP        | Private IP   | Instance Type | Security Group     | Role / Purpose                                   
-|
-|---------------------|------------------|--------------|----------------|--------------------|--------------------------------------------------|
-| regi-bastion-ec2     | 18.195.148.236   | 10.0.13.23   | t3.micro       | regi-bastion-sg    | Secure SSH entry point to 
-VPC                    |
-| regi-splunk-server   | 3.120.190.194    | 10.0.0.149   | t3.small       | regi-splunk-sg     | Splunk Enterprise (ports 
-8000, 9997)             |
-| regi-web-ec2-new     | 3.75.189.97      | 10.0.15.63   | t3.micro       | regi-web-sg        | Web server (Nginx + 
-Universal Forwarder)         |
-
-*Legacy instance (regi-web-ec2) removed from architecture.*
-
----
-
-## Network Architecture
+Network Architecture
 
 All instances reside inside the same custom VPC:
 
-- VPC Name: `regi-security-vpc-vpc`
-- Region: eu-central-1 (Frankfurt)
-- Subnets: Public subnets
-- Routing: Internet Gateway attached for outbound access
+VPC Name: regi-security-vpc-vpc
 
-### Private Connectivity Flow
-[Bastion 10.0.13.23]
-        |
-        | (SSH)
-        v
-[Web Server 10.0.15.63] -----> (UF logs) -----> [Splunk 10.0.0.149]
+Region: eu-central-1 (Frankfurt)
 
-### Public Access Flow
-Your Laptop
-     |
-     | SSH → Bastion (18.195.148.236)
-     |
-     | HTTP → Web Server (3.75.189.97)
-     |
-     | Splunk Web → Splunk (3.120.190.194:8000)
+Subnets: Public subnets
 
----
+Routing: Internet Gateway attached for outbound access
 
-## Security Groups Summary
+Private Connectivity Flow (Internal)
 
-### regi-bastion-sg
+[Bastion 10.0.13.23] → SSH → [Web Server 10.0.15.63] → Logs → [Splunk 10.0.0.149]
+
+Public Access Flow (External)
+
+Laptop → SSH → Bastion (18.195.148.236)
+Laptop → HTTP → Web (3.75.189.97)
+Laptop → Splunk Web (3.120.190.194:8000)
+
+Security Groups Summary
+regi-bastion-sg
+
 Inbound:
-- TCP 22 (SSH) — From your IP  
-Outbound:
-- Allow all  
-Purpose: Secure SSH access into the VPC.
 
-### regi-splunk-sg
+TCP 22 (SSH) — From your IP
+Outbound: Allow all
+Purpose: Entry point for SSH to the VPC.
+
+regi-splunk-sg
+
 Inbound:
-- TCP 22 — From Bastion  
-- TCP 8000 — Splunk Web UI  
-- TCP 9997 — From Universal Forwarder  
-Outbound:
-- Allow all  
-Purpose: Accept logs + serve Splunk UI.
 
-### regi-web-sg
+TCP 22 — From Bastion
+
+TCP 8000 — Splunk Web UI
+
+TCP 9997 — Universal Forwarder
+Outbound: Allow all
+Purpose: Splunk Enterprise server.
+
+regi-web-sg
+
 Inbound:
-- TCP 22 — From Bastion  
-- TCP 80 — HTTP (Nginx)  
+
+TCP 22 — From Bastion
+
+TCP 80 — HTTP
 Outbound:
-- TCP 9997 → Splunk private IP (10.0.0.149)  
-Purpose: Host Nginx + send logs to Splunk.
 
----
+TCP 9997 → Splunk private IP (10.0.0.149)
+Purpose: Web server + log forwarder.
 
-## Instance Roles
+Instance Roles
+1. Bastion Host
 
-### 1. Bastion Host
-- Entry point for SSH  
-- Protects internal servers from public exposure  
-- Used for administrative access only  
+Secure SSH access gateway
 
-### 2. Splunk Enterprise Server
-- Receives logs from Universal Forwarder  
-- Hosts Splunk Web UI (port 8000)  
-- Listens for log ingestion on port 9997  
+Protects EC2 instances from public exposure
 
-### 3. Web Server (Nginx + Universal Forwarder)
-- Serves web pages over HTTP  
-- Forwards Nginx + system logs to Splunk  
-- Used for detection, learning, and attack simulation  
+Used for admin access
 
----
+2. Splunk Enterprise Server
 
-## Useful EC2 Commands
+Receives logs from Universal Forwarder
+
+Hosts Splunk Web UI on port 8000
+
+Accepts logs on port 9997
+
+3. Web Server (Nginx + Universal Forwarder)
+
+Serves HTTP traffic
+
+Forwards logs to Splunk
+
+Used for detections & attack simulations
+
+Useful EC2 Commands
 
 Update server:
 sudo apt update && sudo apt upgrade -y
@@ -113,18 +109,15 @@ ss -tulnp
 Test HTTP:
 curl http://3.75.189.97
 
-Check Splunk server connectivity:
+Ping Splunk:
 ping 10.0.0.149
 
 Restart Nginx:
 sudo systemctl restart nginx
 
----
+Final Architecture Status
 
-## Final Architecture Status
-✔ All EC2 instances are deployed and reachable  
-✔ Internal routing between servers works  
-✔ Web Server successfully forwards logs to Splunk  
-✔ Bastion host secured  
-✔ Environment ready for security monitoring & analysis  
-
+✔ Infrastructure deployed
+✔ Logs flow from Web → Splunk
+✔ Bastion protects SSH access
+✔ System ready for SOC analysis and monitoring
